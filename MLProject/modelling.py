@@ -22,10 +22,11 @@ def main(data_path):
         model = RandomForestClassifier(random_state=42)
         model.fit(X_train, y_train)
 
-        os.makedirs("output", exist_ok=True)
-        model_path = "output/model.pkl"
+        output_dir = os.path.join(os.getcwd(), "output")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        model_path = os.path.join(output_dir, "model.pkl")
         joblib.dump(model, model_path)
-
         mlflow.log_artifact(model_path)
 
         y_pred = model.predict(X_test)
