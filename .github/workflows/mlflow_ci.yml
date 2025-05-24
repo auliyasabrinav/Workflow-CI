@@ -2,9 +2,19 @@ name: MLflow CI Training
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'MLProject/**'
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
+
+env:
+  DATA_PATH: namadataset_preprocessing/creditapproval-data_preprocessing.csv
+  MLFLOW_EXPERIMENT_NAME: mlflow-creditapproval
+  DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/mlproject-model
 
 jobs:
   train-model:
@@ -14,21 +24,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Conda
+      - name: Set up Conda environment
         uses: conda-incubator/setup-miniconda@v2
         with:
-          activate-environment: credit_env
           environment-file: MLProject/conda.yaml
+          activate-environment: credit_env
           auto-activate-base: false
 
       - name: Install MLflow CLI
-        run: |
-          pip install mlflow
+        run: pip install mlflow
 
       - name: Run MLflow Project
         run: |
           cd MLProject
-          mlflow run . --entry-point main
+          mlflow run . --entry-point main --params data_path=${{ env.DATA_PATH }}
 
       - name: Upload model artifact
         uses: actions/upload-artifact@v3
@@ -44,8 +53,8 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/mlproject-model:latest MLProject
+          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:latest MLProject
 
       - name: Push Docker Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/mlproject-model:latest
+          docker push ${{ env.DOCKER_IMAGE_NAME }}:latest
