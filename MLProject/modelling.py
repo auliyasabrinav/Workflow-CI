@@ -6,11 +6,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import os
-import joblib
+from mlflow.models.signature import infer_signature
 
 def main(data_path):
-    mlflow.sklearn.autolog()
-
     df = pd.read_csv(data_path)
 
     X = df.drop("status kredit", axis=1)
@@ -22,16 +20,24 @@ def main(data_path):
         model = RandomForestClassifier(random_state=42)
         model.fit(X_train, y_train)
 
-        output_dir = os.path.join(os.getcwd(), "output")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        model_path = os.path.join(output_dir, "model.pkl")
-        joblib.dump(model, model_path)
-        mlflow.log_artifact(model_path, artifact_path="output")
-
-
+        # Prediksi untuk signature dan evaluasi
         y_pred = model.predict(X_test)
         acc = accuracy_score(y_test, y_pred)
+
+        # Buat signature model supaya input/output terekam
+        signature = infer_signature(X_test, y_pred)
+
+        # Log model dengan mlflow.sklearn.log_model (bukan log_artifact)
+        mlflow.sklearn.log_model(
+            sk_model=model,
+            artifact_path="rf_best_model",
+            signature=signature,
+            input_example=X_test.iloc[:3]
+        )
+
+        # Log metric akurasi
+        mlflow.log_metric("accuracy", acc)
+
         print(f"Akurasi: {acc}")
 
 if __name__ == "__main__":
