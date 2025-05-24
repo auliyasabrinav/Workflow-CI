@@ -34,6 +34,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install mlflow
           pip install -r MLProject/requirements.txt
+          
+      - name: Debug list file
+        run: |
+          ls -l MLProject/
+          ls -l MLProject/namadataset_preprocessing/
+          file MLProject/namadataset_preprocessing/creditapproval-data_preprocessing.csv
+
 
       - name: Run MLflow Project
         run: |
