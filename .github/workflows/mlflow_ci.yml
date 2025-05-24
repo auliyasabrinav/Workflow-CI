@@ -37,7 +37,7 @@ jobs:
 
       - name: Run MLflow Project
         run: |
-          mlflow run MLProject --entry-point main -P data_path=${{ env.DATA_PATH }}
+          mlflow run MLProject --env-manager local --entry-point main -P data_path=${{ env.DATA_PATH }}
 
       - name: Get latest MLflow run_id
         run: |
