@@ -61,8 +61,9 @@ jobs:
         run: |
           mlflow artifacts download \
             --run-id $RUN_ID \
-            --artifact-path model.pkl \  # GANTI INI
+            --artifact-path model.pkl \
             --dst-path MLProject/output
+
 
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
