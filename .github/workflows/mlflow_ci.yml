@@ -1,4 +1,4 @@
-name: MLflow CI Training
+name: CI/CD MLflow Training
 
 on:
   push:
@@ -12,35 +12,60 @@ on:
   workflow_dispatch:
 
 env:
-  DATA_PATH: namadataset_preprocessing/creditapproval-data_preprocessing.csv
+  DATA_PATH: MLProject/dataset_preprocessing/creditapproval-data_preprocessing.csv
   MLFLOW_EXPERIMENT_NAME: mlflow-creditapproval
   DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/mlproject-model
 
 jobs:
-  train-model:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Set up Conda environment
-        uses: conda-incubator/setup-miniconda@v2
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
         with:
-          environment-file: MLProject/conda.yaml
-          activate-environment: credit_env
-          auto-activate-base: false
+          python-version: "3.12"
 
-      - name: Install MLflow CLI
-        run: pip install mlflow
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install mlflow
+          pip install -r MLProject/requirements.txt
 
       - name: Run MLflow Project
         run: |
-          cd MLProject
-          mlflow run . --entry-point main --params data_path=${{ env.DATA_PATH }}
+          mlflow run MLProject --entry-point main --params data_path=${{ env.DATA_PATH }}
+
+      - name: Get latest MLflow run_id
+        run: |
+          echo "Getting latest run ID..."
+          python <<EOF
+          import mlflow
+          client = mlflow.tracking.MlflowClient()
+          experiment = client.get_experiment_by_name("${{ env.MLFLOW_EXPERIMENT_NAME }}")
+          if experiment is None:
+              raise Exception("Experiment not found.")
+          runs = client.search_runs(experiment_ids=[experiment.experiment_id], order_by=["start_time DESC"])
+          if not runs:
+              raise Exception("No runs found in the experiment.")
+          run_id = runs[0].info.run_id
+          print(f"Latest run ID: {run_id}")
+          with open("${GITHUB_ENV}", "a") as f:
+              f.write(f"RUN_ID={run_id}\n")
+          EOF
+
+      - name: Download Model Artifact from MLflow
+        run: |
+          mlflow artifacts download \
+            --run-id $RUN_ID \
+            --artifact-path model.pkl \
+            --dst-path MLProject/output
 
       - name: Upload model artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: trained-model
           path: MLProject/output/model.pkl
