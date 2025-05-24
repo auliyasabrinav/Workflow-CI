@@ -27,7 +27,8 @@ def main(data_path):
         
         model_path = os.path.join(output_dir, "model.pkl")
         joblib.dump(model, model_path)
-        mlflow.log_artifact(model_path)
+        mlflow.log_artifact(model_path, artifact_path="output")
+
 
         y_pred = model.predict(X_test)
         acc = accuracy_score(y_test, y_pred)
