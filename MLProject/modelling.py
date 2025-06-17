@@ -1,47 +1,86 @@
-import argparse
+# modelling.py (VERSI FINAL)
+
 import pandas as pd
-import mlflow
-import mlflow.sklearn
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
-import os
-from mlflow.models.signature import infer_signature
+import mlflow
+import dagshub
+import argparse
 
-def main(data_path):
-    df = pd.read_csv(data_path)
+def setup_mlflow():
+    """Menginisialisasi DagsHub & MLflow."""
+    print("🚀 Menginisialisasi DagsHub dan MLflow...")
+    # Menggunakan DagsHub logger untuk setup otomatis
+    dagshub.init(mlflow=True)
+    # Menonaktifkan autologging model untuk kontrol manual
+    mlflow.sklearn.autolog(log_models=False, log_input_examples=True, log_model_signatures=True)
+    print("✅ Pengaturan MLflow selesai.")
 
-    X = df.drop("status kredit", axis=1)
-    y = df["status kredit"]
+def load_data(data_path: str) -> tuple:
+    """Memuat dataset dan membaginya."""
+    print(f"\n💾 Memuat data dari: {data_path}...")
+    try:
+        df = pd.read_csv(data_path)
+    except FileNotFoundError:
+        print(f"::error::File data tidak ditemukan di path: {data_path}")
+        exit(1)
+        
+    # Pastikan nama kolom target sesuai dengan file CSV Anda
+    target_column = "LUNG_CANCER"
+    if target_column not in df.columns:
+        print(f"::error::Kolom target '{target_column}' tidak ditemukan di dataset.")
+        exit(1)
+        
+    X = df.drop(target_column, axis=1)
+    y = df[target_column]
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+    print(f"✅ Data dimuat. Set latih memiliki {len(X_train)} sampel.")
+    return X_train, X_test, y_train, y_test
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
+def train_model(X_train, X_test, y_train, y_test, max_iter: int, C: float):
+    """Melatih model dan mencatat hasilnya."""
+    print("\n🧠 Memulai pelatihan model...")
     with mlflow.start_run():
-        model = RandomForestClassifier(random_state=42)
+        run_id = mlflow.active_run().info.run_id
+        print(f"MLflow Run ID: {run_id}")
+
+        # Logging parameter
+        mlflow.log_params({"max_iter": max_iter, "C": C, "solver": "liblinear"})
+        mlflow.set_tag("ModelType", "LogisticRegression")
+        
+        # Training
+        model = LogisticRegression(max_iter=max_iter, solver="liblinear", C=C)
         model.fit(X_train, y_train)
-
-        # Prediksi untuk signature dan evaluasi
+        
+        # Evaluasi
         y_pred = model.predict(X_test)
-        acc = accuracy_score(y_test, y_pred)
-
-        # Buat signature model supaya input/output terekam
-        signature = infer_signature(X_test, y_pred)
-
-        # Log model dengan mlflow.sklearn.log_model (bukan log_artifact)
+        accuracy = accuracy_score(y_test, y_pred)
+        mlflow.log_metric("accuracy", accuracy)
+        
+        # Logging model dengan nama artifak yang aman
         mlflow.sklearn.log_model(
             sk_model=model,
-            artifact_path="rf_best_model",
-            signature=signature,
-            input_example=X_test.iloc[:3]
+            artifact_path="model_files"
         )
-
-        # Log metric akurasi
-        mlflow.log_metric("accuracy", acc)
-
-        print(f"Akurasi: {acc}")
+        
+        print(f"✅ Pelatihan selesai. Akurasi Model: {accuracy:.4f}")
+        print("📈 Parameter, metrik, dan model telah dicatat.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_path", type=str, required=True)
+    parser.add_argument("--C", type=float, default=1.0)
+    parser.add_argument("--max_iter", type=int, default=1000)
     args = parser.parse_args()
-    main(args.data_path)
+
+    setup_mlflow()
+    X_train, X_test, y_train, y_test = load_data(data_path=args.data_path)
+    train_model(
+        X_train, X_test, y_train, y_test,
+        max_iter=args.max_iter,
+        C=args.C
+    )
+    print("\n🎉 Proses berhasil diselesaikan!")
